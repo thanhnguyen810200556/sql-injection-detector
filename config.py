@@ -5,7 +5,7 @@ from datetime import datetime
 # Cấu hình cơ bản
 class Config:
     # Bảo mật
-    SECRET_KEY = os.environ.get('SECRET_KEY') or 'you-will-never-guess'
+    
     
     # Đường dẫn dữ liệu
     BASE_DIR = os.path.abspath(os.path.dirname(__file__))
