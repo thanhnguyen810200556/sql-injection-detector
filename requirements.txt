@@ -1,0 +1,9 @@
+#Môi trường
+flask
+gunicorn
+scikit-learn
+numpy
+pandas
+regex
+matplotlib
+joblib
