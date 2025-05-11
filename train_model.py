@@ -146,13 +146,32 @@ def compare_models(test_file, output_dir):
         
         # Combined
         combined_result = combined_detector.detect(query)
-        combined_results.append(combined_result)
-    
+        #combined_results.append(combined_result)
+        combined_results.append(combined_result.to_dict())
+   
     # Tính các metrics
     def calculate_metrics(results, true_labels):
-        preds = [1 if r['is_sqli'] else 0 for r in results]
-        scores = [r['score'] for r in results]
-        
+        # Xử lý cả 2 trường hợp: dict và DetectionResult
+        preds = []
+        scores = []
+        for r in results:
+            if isinstance(r, dict):
+                preds.append(1 if r['is_sqli'] else 0)
+                if 'confidence' in r:
+                    scores.append(float(r['confidence']))
+                elif 'ml_score' in r:
+                    scores.append(float(r['ml_score']))
+                elif 'rule_score' in r:
+                    scores.append(float(r['rule_score']))
+            else:  # Nếu là DetectionResult object
+                preds.append(1 if r.is_sqli else 0)
+                if 'confidence' in r:
+                    scores.append(float(r.confidence))
+                elif 'ml_score' in r:
+                    scores.append(float(r['ml_score']))
+                elif 'rule_score' in r:
+                    scores.append(float(r['rule_score']))
+
         # Confusion matrix
         tn, fp, fn, tp = confusion_matrix(true_labels, preds).ravel()
         
@@ -162,13 +181,18 @@ def compare_models(test_file, output_dir):
         recall = tp / (tp + fn) if (tp + fn) > 0 else 0
         f1 = 2 * precision * recall / (precision + recall) if (precision + recall) > 0 else 0
         
-        # ROC curve
-        fpr, tpr, _ = roc_curve(true_labels, scores)
-        roc_auc = auc(fpr, tpr)
+        roc_auc = 0
+        pr_auc = 0
+        fpr, tpr = [], []
+        precision_curve, recall_curve = [], []
+    
+        if len(scores) > 0:
+            fpr, tpr, _ = roc_curve(true_labels, scores)
+            roc_auc = auc(fpr, tpr)
         
-        # PR curve
-        precision_curve, recall_curve, _ = precision_recall_curve(true_labels, scores)
-        pr_auc = auc(recall_curve, precision_curve)
+            precision_curve, recall_curve, _ = precision_recall_curve(true_labels, scores)
+            pr_auc = auc(recall_curve, precision_curve)
+    
         
         return {
             'accuracy': accuracy,
