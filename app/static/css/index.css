@@ -1,0 +1,246 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: 'Segoe UI', sans-serif;
+}
+
+body {
+    width: 100vw;
+    height: 100vh;
+    background:
+    linear-gradient(60deg, #65a4dc, #937aa8, #ff9fba);
+}
+
+.content {
+    color: #fff;
+    margin: 20px 60px;
+}
+
+.navbar {
+    position: sticky;
+    top: 0;
+    width: 100%;
+    padding: 0 60px;
+    border-bottom: 1px solid #ccc;
+    background: #fff;
+    display: flex;
+    align-items: center;
+}
+
+.navbar__title {
+    font-weight: 700;
+}
+
+.navbar__list {
+    margin: auto;
+    display: flex;
+    gap: 8px;
+}
+
+.navbar__item {
+    position: relative;
+    padding: 16px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: background 0.3s ease;
+}
+
+.navbar__item:hover {
+    background: #eee;
+    cursor: pointer;
+}
+
+.dropdown {
+    position: absolute;
+    top: 60px;
+    left: 0;
+    width: 250px;
+    border: 1px solid #ccc;
+    box-shadow: 0 0 15px rgba(0, 0, 0, 0.05);
+    background: #fff;
+    transform: translateY(-20px);
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.dropdown__item {
+    padding: 12px;
+    transition: background 0.3s ease;
+}
+
+.dropdown__item:hover {
+    background: #eee;
+    cursor: pointer;
+}
+
+.dropdown::before {
+    content: "";
+    position: absolute;
+    top: -10px;
+    left: 0;
+    width: 110px;
+    height: 10px;
+}
+
+.navbar__item:hover>.dropdown {
+    transform: translateY(0);
+    opacity: 1;
+    visibility: visible;
+}
+
+/* Styles for search container */
+.search-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin-top: 50px;
+    padding: 20px;
+    width: 100%;
+    max-width: 700px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.search-input {
+    width: 500px;
+    height: 45px;
+    padding: 0 15px;
+    font-size: 16px;
+    border: 1px solid #dfe1e5;
+    border-radius: 24px;
+    outline: none;
+    box-shadow: 0 1px 6px rgba(32, 33, 36, 0.28);
+}
+
+.search-input:focus {
+    box-shadow: 0 1px 8px rgba(32, 33, 36, 0.5);
+}
+
+.search-button {
+    margin-left: 10px;
+    padding: 12px 24px;
+    background-color: #4CAF50; /* Green color */
+    color: white;
+    border: none;
+    border-radius: 4px;
+    font-size: 16px;
+    cursor: pointer;
+    transition: background-color 0.3s;
+}
+
+.search-button:hover {
+    background-color: #45a049;
+}
+
+/* Styles for result container */
+.result-container {
+    display: none; /* Ẩn ban đầu, sẽ hiển thị khi có kết quả */
+    justify-content: center;
+    align-items: center;
+    margin-top: 15px;
+    width: 100%;
+    max-width: 700px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.result-box {
+    background-color: white;
+    width: 100%;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+.result-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+    border-bottom: 1px solid #eee;
+    padding-bottom: 10px;
+}
+
+.result-meta {
+    font-size: 14px;
+    color: #666;
+}
+
+.result-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 15px;
+    margin-bottom: 20px;
+}
+
+.result-item {
+    display: flex;
+    flex-direction: column;
+}
+
+.result-label {
+    font-size: 14px;
+    color: #666;
+    margin-bottom: 5px;
+}
+
+.result-value {
+    font-size: 16px;
+    font-weight: 500;
+}
+
+.patterns-section {
+    margin-top: 15px;
+    border-top: 1px solid #eee;
+    padding-top: 15px;
+}
+
+.patterns-section h4 {
+    margin-bottom: 10px;
+}
+
+#detected-patterns {
+    margin-left: 20px;
+}
+
+#detected-patterns li {
+    margin-bottom: 5px;
+}
+
+/* Color styles matching the background gradient */
+.attack-true {
+    color: #ff0000;
+    font-weight: bold;
+}
+
+.attack-false {
+    color: #4CAF50;
+    font-weight: bold;
+}
+
+.loading {
+    color: #937aa8;
+}
+
+.error {
+    color: #ff6b6b;
+}
+
+/* Customize levels */
+.severity-high {
+    color: #ff0000;
+    font-weight: bold;
+}
+
+.severity-medium {
+    color: #ff9f00;
+    font-weight: bold;
+}
+
+.severity-low {
+    color: #4CAF50;
+    font-weight: bold;
+}
