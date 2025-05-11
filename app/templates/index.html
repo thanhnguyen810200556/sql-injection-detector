@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/index.css') }}" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" />
+  <title>Kiểm tra SQL Injection</title>
+</head>
+<body>
+  <div class="navbar">
+    <div class="navbar__title">IE105</div>
+    <div class="navbar__list">
+      <div class="navbar__item">
+        <span>MSSV1</span>
+        <i class="fas fa-chevron-down"></i>
+        <div class="dropdown">
+          <div class="dropdown__item">23521773</div>
+          <div class="dropdown__item">Nguyễn Trần Khánh Vân</div>
+        </div>
+      </div>
+      <div class="navbar__item">
+        <span>MSSV2</span>
+        <i class="fas fa-chevron-down"></i>
+        <div class="dropdown">
+          <div class="dropdown__item">23521457</div>
+          <div class="dropdown__item">Nguyễn Xuân Thanh</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="content">
+    <h2>Phát hiện tấn công SQL injection</h2>
+    <p>Bằng machine learning và rule-base</p>
+  </div>
+
+  <div class="search-container">
+    <input type="text" class="search-input" placeholder="Nhập truy vấn cần kiểm tra...">
+    <button class="search-button">Kiểm tra</button>
+  </div>
+
+  <div class="result-container" id="result-container">
+    <div class="result-box">
+      <div class="result-header">
+        <h3>Kết quả kiểm tra SQL Injection</h3>
+        <div class="result-meta" id="timestamp"></div>
+      </div>
+      
+      <div class="result-grid">
+        <div class="result-item">
+          <span class="result-label">Tình trạng:</span>
+          <span class="result-value" id="is-sqli"></span>
+        </div>
+        <div class="result-item">
+          <span class="result-label">Độ tin cậy:</span>
+          <span class="result-value" id="confidence"></span>
+        </div>
+        <div class="result-item">
+          <span class="result-label">Mức độ:</span>
+          <span class="result-value" id="severity"></span>
+        </div>
+        <div class="result-item">
+          <span class="result-label">Rule-based Score:</span>
+          <span class="result-value" id="rule-score"></span>
+        </div>
+        <div class="result-item">
+          <span class="result-label">ML Score:</span>
+          <span class="result-value" id="ml-score"></span>
+        </div>
+        <div class="result-item">
+          <span class="result-label">Thời gian xử lý:</span>
+          <span class="result-value" id="execution-time"></span>
+        </div>
+      </div>
+      
+      <div class="patterns-section" id="patterns-section">
+        <h4>Mẫu đáng ngờ phát hiện:</h4>
+        <ul id="detected-patterns"></ul>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      const searchButton = document.querySelector('.search-button');
+      const searchInput = document.querySelector('.search-input');
+      const resultContainer = document.getElementById('result-container');
+      
+      // Các phần tử kết quả
+      const timestampEl = document.getElementById('timestamp');
+      const isSqliEl = document.getElementById('is-sqli');
+      const confidenceEl = document.getElementById('confidence');
+      const severityEl = document.getElementById('severity');
+      const ruleScoreEl = document.getElementById('rule-score');
+      const mlScoreEl = document.getElementById('ml-score');
+      const execTimeEl = document.getElementById('execution-time');
+      const patternsList = document.getElementById('detected-patterns');
+      const patternsSection = document.getElementById('patterns-section');
+
+      searchButton.addEventListener('click', checkSQLi);
+      searchInput.addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') checkSQLi();
+      });
+
+      async function checkSQLi() {
+        const query = searchInput.value.trim();
+        if (!query) return;
+
+        // Hiển thị trạng thái đang kiểm tra
+        resultContainer.style.display = 'flex';
+        isSqliEl.textContent = 'Đang kiểm tra...';
+        isSqliEl.className = 'result-value loading';
+        
+        // Ẩn các phần tử khác trong khi đang kiểm tra
+        confidenceEl.textContent = '';
+        severityEl.textContent = '';
+        ruleScoreEl.textContent = '';
+        mlScoreEl.textContent = '';
+        execTimeEl.textContent = '';
+        patternsList.innerHTML = '';
+        patternsSection.style.display = 'none';
+
+        try {
+          const response = await fetch('/api/detect', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ query: query })
+          });
+
+          const data = await response.json();
+
+          if (data.success) {
+            displayResults(data.result);
+          } else {
+            showError('Lỗi khi xử lý truy vấn');
+          }
+        } catch (error) {
+          console.error(error);
+          showError('Lỗi kết nối đến server');
+        }
+      }
+
+      function displayResults(result) {
+        // Hiển thị thời gian
+        timestampEl.textContent = `Thời gian: ${result.timestamp}`;
+        
+        // Hiển thị kết quả chính
+        isSqliEl.textContent = result.is_sqli ? 'CÓ SQL INJECTION' : 'KHÔNG CÓ SQL INJECTION';
+        isSqliEl.className = `result-value ${result.is_sqli ? 'attack-true' : 'attack-false'}`;
+        
+        // Hiển thị các thông số
+        confidenceEl.textContent = `${(result.confidence * 100).toFixed(2)}%`;
+        severityEl.textContent = getSeverityText(result.confidence);
+        ruleScoreEl.textContent = `${(result.rule_score * 100).toFixed(2)}%`;
+        mlScoreEl.textContent = `${(result.ml_score * 100).toFixed(2)}%`;
+        execTimeEl.textContent = `${result.execution_time} ms`;
+        
+        // Hiển thị các mẫu đáng ngờ nếu có
+        if (result.detected_patterns && result.detected_patterns.length > 0) {
+          patternsList.innerHTML = '';
+          result.detected_patterns.forEach(pattern => {
+            const li = document.createElement('li');
+            li.textContent = pattern;
+            patternsList.appendChild(li);
+          });
+          patternsSection.style.display = 'block';
+        } else {
+          patternsSection.style.display = 'none';
+        }
+      }
+
+      function getSeverityText(confidence) {
+        if (confidence >= 0.8) return 'CAO';
+        if (confidence >= 0.5) return 'TRUNG BÌNH';
+        return 'THẤP';
+      }
+
+      function showError(message) {
+        isSqliEl.textContent = message;
+        isSqliEl.className = 'result-value error';
+      }
+    });
+  </script>
+</body>
+</html>
