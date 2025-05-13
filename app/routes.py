@@ -4,10 +4,15 @@ from utils.detector_combined import CombinedDetector
 from app.models import DetectionResult, QueryLog
 from utils.logger import Logger
 import time
+from flask import render_template
 
 main_bp = Blueprint('main', __name__)
 detector = CombinedDetector(logger=Logger())
 
+@main_bp.route('/')
+def index():
+    return render_template('index.html')
+    
 @main_bp.route('/api/detect', methods=['POST'])
 def detect_sqli():
     """Endpoint phát hiện SQL injection"""
