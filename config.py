@@ -12,8 +12,8 @@ class Config:
     DATA_DIR = os.path.join(BASE_DIR, 'data')    
     RAW_DATA_PATH = os.path.join(DATA_DIR, 'csic_database.csv')
     PREPROCESSED_DATA_PATH = os.path.join(DATA_DIR, 'preprocessed_csiv.csv')
-    TRAIN_DATA_PATH = os.path.join(DATA_DIR, 'train', 'train.csv')
-    TEST_DATA_PATH = os.path.join(DATA_DIR, 'test', 'test.csv')
+    TRAIN_DATA_PATH = os.path.join(DATA_DIR, 'train', 'Train_clean.csv')
+    TEST_DATA_PATH = os.path.join(DATA_DIR, 'test', 'Test_clean.csv')
     
     # Cấu hình ML model
     ML_MODEL_PATH = os.path.join(BASE_DIR, 'detectors', 'models')
@@ -46,11 +46,11 @@ class Config:
     ]
     
       # Ngưỡng phát hiện SQLi
-    RULE_BASED_THRESHOLD = 0.7  # Ngưỡng riêng cho rule-based
+    RULE_BASED_THRESHOLD = 0.75  # Ngưỡng riêng cho rule-based
     ML_THRESHOLD = 0.5          # Ngưỡng riêng cho ML
-    COMBINED_THRESHOLD = 0.6    # Ngưỡng khi kết hợp cả hai
+    COMBINED_THRESHOLD = 0.7    # Ngưỡng khi kết hợp cả hai
     THRESHOLD = 0.5
 
     # Cấu hình kết hợp model
-    RULE_WEIGHT = 0.6  # Trọng số cho rule-based
-    ML_WEIGHT = 0.4    # Trọng số cho machine learning
+    RULE_WEIGHT = 0.4  # Trọng số cho rule-based 0.7
+    ML_WEIGHT = 0.6    # Trọng số cho machine learning 0.3
