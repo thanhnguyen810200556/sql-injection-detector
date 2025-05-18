@@ -53,14 +53,14 @@ class CombinedDetector:
         
         # Phát hiện bằng rule-based
         rule_result = self.rule_detector.detect(query)
-        rule_score = rule_result['score']
+        rule_score = rule_result['rule_score']
         detected_patterns = rule_result['patterns']
         
         # Phát hiện bằng machine learning nếu có thể
         if self.ml_available:
             try:
                 ml_result = self.ml_detector.detect(query)
-                ml_score = ml_result['score']
+                ml_score = ml_result['ml_score']
                 ml_error = None
             except Exception as e:
                 self.logger.log_error(f"Lỗi khi phát hiện bằng ML: {e}")
