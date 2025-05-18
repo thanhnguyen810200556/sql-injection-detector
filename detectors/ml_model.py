@@ -5,11 +5,15 @@ import os
 import time
 import logging
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.feature_selection import SelectFromModel
+from sklearn.model_selection import RandomizedSearchCV
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import precision_score, recall_score, f1_score, confusion_matrix
 from utils.data_processor import DataProcessor
 from config import Config
+from imblearn.pipeline import Pipeline as ImbPipeline
+from imblearn.over_sampling import SMOTE
 
 class MLDetector:
     """
@@ -36,13 +40,13 @@ class MLDetector:
     
     def train(self, train_file=None):
         """
-        Huấn luyện mô hình machine learning
+        Huấn luyện mô hình machine learning với SMOTE, feature selection và tinh chỉnh tham số
     
         Args:
             train_file (str, optional): Đường dẫn đến file dữ liệu huấn luyện
         
         Returns:
-            float: Độ chính xác trên tập huấn luyện
+            float: F1-score trên tập huấn luyện
         
         Raises:
             FileNotFoundError: Nếu không tìm thấy file dữ liệu
@@ -53,45 +57,79 @@ class MLDetector:
         
         # Kiểm tra file huấn luyện
         if not os.path.exists(train_file):
+            logging.error(f"Không tìm thấy file train: {train_file}")
             raise FileNotFoundError(f"Không tìm thấy file train: {train_file}")
         
         # Đọc dữ liệu train
-        logging.debug(f"Đọc dữ liệu từ {train_file}")
+        logging.info(f"Đọc dữ liệu từ {train_file}")
         train_df = pd.read_csv(train_file)
     
         # Kiểm tra phân bố nhãn
         label_counts = train_df['label'].value_counts()
-        logging.debug("Label distribution: %s", label_counts.to_dict())
+        logging.info("Phân bố nhãn: %s", label_counts.to_dict())
         if len(label_counts) < 2:
             logging.error("Dữ liệu huấn luyện chỉ có một lớp: %s", label_counts)
             raise ValueError("Dữ liệu huấn luyện chỉ có một lớp. Vui lòng cung cấp dữ liệu với cả hai nhãn.")
 
         # Chuẩn bị features và labels
+        logging.info("Chuẩn bị đặc trưng từ dataframe")
         X_train_df, y_train = self.data_processor.prepare_features_from_df(
             train_df, query_column='query', label_column='label'
         )
-        logging.debug("Features shape: %s", X_train_df.shape)
+        logging.info("Kích thước đặc trưng: %s", X_train_df.shape)
     
         # Lưu tên các features
         self.feature_names = X_train_df.columns.tolist()
-    
-        # Khởi tạo scaler và mô hình trong pipeline
-        self.pipeline = Pipeline([
-            ('scaler', StandardScaler()),
-            ('classifier', RandomForestClassifier(
-                n_estimators=100,
-                max_depth=10,
-                random_state=42,
-                n_jobs=-1,
-                class_weight='balanced'
-            ))
+        logging.info(f"Số lượng đặc trưng đầu vào: {len(self.feature_names)}")
+        print(f"Số lượng đặc trưng đầu vào: {len(self.feature_names)}")
+
+        # Tạo pipeline với SMOTE, feature selection và RandomForest
+        logging.info("Khởi tạo pipeline")
+        self.pipeline = ImbPipeline([
+        ('scaler', StandardScaler()),
+        ('smote', SMOTE(random_state=42)),  # Giữ SMOTE để xử lý mất cân bằng
+        ('classifier', RandomForestClassifier(
+                                n_estimators=200, #300
+                                 random_state=42,
+                                 min_samples_split = 5,
+                                 min_samples_leaf = 4, #2
+                                 max_features = 'log2',
+                                 max_depth = 12,
+                                 n_jobs=-1,
+                                 class_weight={0: 1, 1: 1.5})) # Chọn đặc trưng 1:1.2
         ])
-    
-        # Huấn luyện pipeline
-        print("Bắt đầu huấn luyện mô hình...")
-        self.pipeline.fit(X_train_df, y_train)
-        print("Huấn luyện mô hình hoàn tất.")
-    
+
+        # Định nghĩa tham số tìm kiếm
+        param_grid = {
+            'classifier__n_estimators': [200, 300, 400],
+            'classifier__max_depth': [8, 10, 12],
+            'classifier__min_samples_split': [5, 10],
+            'classifier__min_samples_leaf': [2, 4],
+            'classifier__max_features': ['sqrt', 'log2'],
+            'classifier__class_weight': ['balanced', {0:1, 1:1.5}, {0:1, 1:2}]
+        }
+
+        # Tinh chỉnh tham số với RandomizedSearchCV
+        logging.info("Bắt đầu tinh chỉnh tham số...")
+        print("Bắt đầu tinh chỉnh tham số...")
+        search = RandomizedSearchCV(
+            self.pipeline,
+            param_distributions=param_grid,
+            n_iter=10,  # Số lần thử
+            cv=5,
+            scoring='f1',
+            n_jobs=-1,
+            random_state=42,
+            verbose=1
+        )
+
+        search.fit(X_train_df, y_train)
+        self.pipeline = search.best_estimator_
+        logging.info(f"Tham số tốt nhất: {search.best_params_}")
+        logging.info(f"F1-score tốt nhất (CV): {search.best_score_:.4f}")
+        print(f"Tham số tốt nhất: {search.best_params_}")
+        print(f"F1-score tốt nhất (CV): {search.best_score_:.4f}")
+
         # Trích xuất mô hình và scaler từ pipeline
         self.model = self.pipeline.named_steps['classifier']
         self.scaler = self.pipeline.named_steps['scaler']
@@ -101,14 +139,19 @@ class MLDetector:
             logging.error("Mô hình chỉ học được một lớp: %s", self.model.classes_)
             raise ValueError("Mô hình chỉ học được một lớp. Kiểm tra dữ liệu huấn luyện.")
     
+        # Đánh dấu model đã được tải/huấn luyện
+        self.is_loaded = True
+        
         # Lưu model
         self.save_model()
     
         # Đánh giá model trên tập train
-        train_accuracy = self.pipeline.score(X_train_df, y_train)
-        print(f"Độ chính xác trên tập train: {train_accuracy:.4f}")
+        y_pred = self.pipeline.predict(X_train_df)
+        train_f1 = f1_score(y_train, y_pred)
+        logging.info(f"F1-score trên tập train: {train_f1:.4f}")
+        print(f"F1-score trên tập train: {train_f1:.4f}")
     
-        return train_accuracy
+        return train_f1
     
     def evaluate(self, test_file=None):
         """
@@ -271,7 +314,7 @@ class MLDetector:
         execution_time = (time.time() - start_time) * 1000  # ms
     
         return {
-            'score': score,
+            'ml_score': score,
             'is_sqli': is_sqli,
             'execution_time': execution_time
         }
