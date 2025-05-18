@@ -159,7 +159,7 @@ class RuleBasedDetector:
         is_sqli = score >= self.threshold
         
         return {
-            'score': score,
+            'rule_score': score,
             'patterns': detected_patterns,
             'is_sqli': is_sqli,
             'execution_time': (time.time() - start_time) * 1000
