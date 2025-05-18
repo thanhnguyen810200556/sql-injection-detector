@@ -6,10 +6,11 @@ import seaborn as sns
 import os
 import joblib
 from sklearn.model_selection import train_test_split, GridSearchCV
-from sklearn.metrics import confusion_matrix, roc_curve, auc, precision_recall_curve
+from sklearn.metrics import confusion_matrix, roc_auc_score, roc_curve, auc, precision_recall_curve
 from sklearn.ensemble import RandomForestClassifier
 from detectors.ml_model import MLDetector
 from detectors.rule_based import RuleBasedDetector
+from utils.data_processor import DataProcessor
 from utils.detector_combined import CombinedDetector
 from config import Config
 
@@ -131,7 +132,7 @@ def compare_models(test_file, output_dir):
     
     # Lưu các kết quả dự đoán
     rule_results = []
-    ml_results = []
+    # ml_results = []
     combined_results = []
     
     # Dự đoán trên từng truy vấn
@@ -142,13 +143,35 @@ def compare_models(test_file, output_dir):
         
         # ML-based
         ml_result = ml_detector.detect(query)
-        ml_results.append(ml_result)
+        # ml_results.append(ml_result)
         
         # Combined
         combined_result = combined_detector.detect(query)
         #combined_results.append(combined_result)
         combined_results.append(combined_result.to_dict())
    
+    ml_batch_eval_results = ml_detector.evaluate(test_file)
+    data_processor = DataProcessor() 
+    X_test_df, y_test_full = data_processor.prepare_features_from_df(
+        test_df, query_column='query', label_column='label'
+    )
+    y_proba_full = ml_detector.model.predict_proba(X_test_df[ml_detector.feature_names])[:, 1] # Sử dụng feature_names để đảm bảo thứ tự cột
+    ml_roc_auc = roc_auc_score(y_test_full, y_proba_full)
+    precision_c, recall_c, _ = precision_recall_curve(y_test_full, y_proba_full)
+    ml_pr_auc = auc(recall_c, precision_c)
+    ml_metrics = {
+    'accuracy': ml_batch_eval_results['accuracy'],
+    'precision': ml_batch_eval_results['precision'],
+    'recall': ml_batch_eval_results['recall'],
+    'f1': ml_batch_eval_results['f1'],
+    'roc_auc': ml_roc_auc,     # Sử dụng AUC đã tính
+    'pr_auc': ml_pr_auc,       # Sử dụng AUC đã tính
+    # Lưu fpr, tpr, precision_curve, recall_curve cho vẽ biểu đồ
+    'fpr': roc_curve(y_test_full, y_proba_full)[0],
+    'tpr': roc_curve(y_test_full, y_proba_full)[1],
+    'precision_curve': precision_c,
+    'recall_curve': recall_c
+    }
     # Tính các metrics
     def calculate_metrics(results, true_labels):
         # Xử lý cả 2 trường hợp: dict và DetectionResult
@@ -168,9 +191,9 @@ def compare_models(test_file, output_dir):
                 if 'confidence' in r:
                     scores.append(float(r.confidence))
                 elif 'ml_score' in r:
-                    scores.append(float(r['ml_score']))
+                    scores.append(float(r.ml_score))
                 elif 'rule_score' in r:
-                    scores.append(float(r['rule_score']))
+                    scores.append(float(r.rule_score))
 
         # Confusion matrix
         tn, fp, fn, tp = confusion_matrix(true_labels, preds).ravel()
@@ -183,16 +206,23 @@ def compare_models(test_file, output_dir):
         
         roc_auc = 0
         pr_auc = 0
-        fpr, tpr = [], []
-        precision_curve, recall_curve = [], []
+        # fpr, tpr = [], []
+        # precision_curve, recall_curve = [], []
+        fpr = np.array([0, 1])  # Giá trị mặc định cho đường thẳng cơ sở
+        tpr = np.array([0, 1])  # Giá trị mặc định cho đường thẳng cơ sở
+        precision_curve = np.array([1, 0])  # Giá trị mặc định cho đường precision
+        recall_curve = np.array([0, 1])
     
         if len(scores) > 0:
-            fpr, tpr, _ = roc_curve(true_labels, scores)
-            roc_auc = auc(fpr, tpr)
+            try:
+                fpr, tpr, _ = roc_curve(true_labels, scores)
+                roc_auc = auc(fpr, tpr)
+            
+                precision_curve, recall_curve, _ = precision_recall_curve(true_labels, scores)
+                pr_auc = auc(recall_curve, precision_curve)
         
-            precision_curve, recall_curve, _ = precision_recall_curve(true_labels, scores)
-            pr_auc = auc(recall_curve, precision_curve)
-    
+            except Exception as e:
+                print(f"Lỗi khi tính toán ROC/PR curve: {e}")
         
         return {
             'accuracy': accuracy,
@@ -209,7 +239,7 @@ def compare_models(test_file, output_dir):
     
     # Tính metrics cho từng mô hình
     rule_metrics = calculate_metrics(rule_results, true_labels)
-    ml_metrics = calculate_metrics(ml_results, true_labels)
+    # ml_metrics = calculate_metrics(ml_results, true_labels)
     combined_metrics = calculate_metrics(combined_results, true_labels)
     
     # In so sánh
@@ -230,7 +260,9 @@ def compare_models(test_file, output_dir):
     # Vẽ ROC curve
     plt.figure(figsize=(10, 8))
     plt.plot(rule_metrics['fpr'], rule_metrics['tpr'], label=f'Rule-based (AUC = {rule_metrics["roc_auc"]:.4f})')
-    plt.plot(ml_metrics['fpr'], ml_metrics['tpr'], label=f'ML-based (AUC = {ml_metrics["roc_auc"]:.4f})')
+    # plt.plot(ml_metrics['fpr'], ml_metrics['tpr'], label=f'ML-based (AUC = {ml_metrics["roc_auc"]:.4f})')
+    plt.plot(ml_metrics['fpr'], ml_metrics['tpr'], label=f'ML-based (AUC = {ml_metrics["roc_auc"]:.4f})') # Sử dụng fpr, tpr từ ml_metrics mới
+
     plt.plot(combined_metrics['fpr'], combined_metrics['tpr'], label=f'Combined (AUC = {combined_metrics["roc_auc"]:.4f})')
     plt.plot([0, 1], [0, 1], 'k--')
     plt.xlabel('False Positive Rate')
@@ -243,7 +275,9 @@ def compare_models(test_file, output_dir):
     # Vẽ PR curve
     plt.figure(figsize=(10, 8))
     plt.plot(rule_metrics['recall_curve'], rule_metrics['precision_curve'], label=f'Rule-based (AUC = {rule_metrics["pr_auc"]:.4f})')
-    plt.plot(ml_metrics['recall_curve'], ml_metrics['precision_curve'], label=f'ML-based (AUC = {ml_metrics["pr_auc"]:.4f})')
+    # plt.plot(ml_metrics['recall_curve'], ml_metrics['precision_curve'], label=f'ML-based (AUC = {ml_metrics["pr_auc"]:.4f})')
+    plt.plot(ml_metrics['recall_curve'], ml_metrics['precision_curve'], label=f'ML-based (AUC = {ml_metrics["pr_auc"]:.4f})') # Sử dụng recall_curve, precision_curve từ ml_metrics mới
+
     plt.plot(combined_metrics['recall_curve'], combined_metrics['precision_curve'], label=f'Combined (AUC = {combined_metrics["pr_auc"]:.4f})')
     plt.xlabel('Recall')
     plt.ylabel('Precision')
