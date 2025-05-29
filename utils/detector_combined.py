@@ -1,5 +1,8 @@
 import time
 import logging
+import numpy as np
+import pandas as pd
+from sklearn.metrics import f1_score, recall_score
 from detectors.ml_model import MLDetector
 from app.models import DetectionResult
 from config import Config
@@ -13,9 +16,6 @@ class CombinedDetector:
     def __init__(self, logger=None):
         """
         Khởi tạo CombinedDetector với các thành phần cần thiết
-        
-        Args:
-            logger (Logger, optional): Logger để ghi log detection
         """
         from detectors.rule_based import RuleBasedDetector
         self.rule_detector = RuleBasedDetector()
@@ -32,30 +32,34 @@ class CombinedDetector:
         # Trọng số cho từng phương pháp
         self.rule_weight = Config.RULE_WEIGHT
         self.ml_weight = Config.ML_WEIGHT
-        
-        # Ngưỡng phát hiện
         self.combined_threshold = Config.COMBINED_THRESHOLD
         
         # Logger
         self.logger = logger or Logger()
         
-    def detect(self, query):
+    def detect(self, query, test_file=None, find_optimal_combination=False):
         """
-        Phân tích truy vấn để phát hiện SQL injection
-        
-        Args:
-            query (str): Chuỗi truy vấn cần kiểm tra
-        
-        Returns:
-            DetectionResult: Kết quả phân tích
+        Phân tích truy vấn để phát hiện SQL injection và tìm trọng số kết hợp tối ưu nếu được yêu cầu
         """
         start_time = time.time()
-        
+
+        # Nếu được yêu cầu tìm trọng số kết hợp tối ưu
+        if find_optimal_combination:
+            if test_file is None:
+                test_file = Config.TEST_DATA_PATH
+            optimal = self._find_optimal_combination(test_file)
+            if optimal is not None:
+                self.rule_weight, self.ml_weight, self.combined_threshold = optimal
+                print(f"Tìm được trọng số tối ưu: rule_weight = {self.rule_weight:.2f}, "
+                    f"ml_weight = {self.ml_weight:.2f}, threshold = {self.combined_threshold:.4f}")
+                self.logger.log_info(f"Updated weights and threshold: rule={self.rule_weight}, "
+                                    f"ml={self.ml_weight}, threshold={self.combined_threshold}")
+
         # Phát hiện bằng rule-based
         rule_result = self.rule_detector.detect(query)
         rule_score = rule_result['rule_score']
         detected_patterns = rule_result['patterns']
-        
+
         # Phát hiện bằng machine learning nếu có thể
         if self.ml_available:
             try:
@@ -69,22 +73,16 @@ class CombinedDetector:
         else:
             ml_score = 0.0
             ml_error = "Model ML không khả dụng"
-        
+
         # Tính toán độ tin cậy kết hợp
         if self.ml_available:
-            # Kết hợp cả hai điểm số với trọng số
             confidence = self.rule_weight * rule_score + self.ml_weight * ml_score
         else:
-            # Chỉ sử dụng rule-based nếu ML không khả dụng
             confidence = rule_score
-        
-        # Xác định có phải SQL injection hay không
+
         is_sqli = confidence >= self.combined_threshold
-        
-        # Thời gian thực thi tính bằng ms
         execution_time = (time.time() - start_time) * 1000
-        
-        # Tạo kết quả phát hiện
+
         result = DetectionResult(
             query=query,
             is_sqli=is_sqli,
@@ -95,18 +93,69 @@ class CombinedDetector:
             execution_time=execution_time,
             ml_error=ml_error
         )
-        
+
         return result
+    
+    def _find_optimal_combination(self, test_file):
+        """
+        Tìm rule_weight, ml_weight, và threshold tốt nhất 
+
+        """
+        try:
+            data = pd.read_csv(test_file)
+            if 'query' not in data.columns or 'label' not in data.columns:
+                self.logger.log_error("File test cần có cột 'query' và 'label'")
+                return None
+
+            scores = []
+            for _, row in data.iterrows():
+                try:
+                    rule_result = self.rule_detector.detect(row['query'])
+                    ml_result = self.ml_detector.detect(row['query']) if self.ml_available else {'ml_score': 0.0}
+
+                    scores.append({
+                        'rule_score': rule_result['rule_score'],
+                        'ml_score': ml_result['ml_score'],
+                        'label': row['label']
+                    })
+                except Exception as e:
+                    self.logger.log_warning(f"Lỗi khi xử lý query: {e}")
+                    continue
+
+            if len(scores) == 0:
+                self.logger.log_error("Không có dữ liệu hợp lệ để tối ưu")
+                return None
+
+            df = pd.DataFrame(scores)
+
+            best_f1 = 0.0
+            best_combination = None
+
+            # Duyệt các trọng số và ngưỡng
+            for rw in np.arange(0.0, 1.1, 0.1):
+                mw = 1.0 - rw
+                for threshold in np.arange(0.1, 1.0, 0.05):
+                    df['combined_score'] = rw * df['rule_score'] + mw * df['ml_score']
+                    df['pred'] = (df['combined_score'] >= threshold).astype(int)
+                    f1 = f1_score(df['label'], df['pred'], zero_division=0)
+                    if f1 > best_f1:
+                        best_f1 = f1
+                        best_combination = (rw, mw, threshold)
+
+            if best_combination:
+                self.logger.log_info(f"Best combination found - rule: {best_combination[0]}, "
+                                    f"ml: {best_combination[1]}, threshold: {best_combination[2]:.4f}, "
+                                    f"F1: {best_f1:.4f}")
+            return best_combination
+
+        except Exception as e:
+            self.logger.log_error(f"Lỗi khi tìm trọng số tối ưu: {e}")
+            return None
+
     
     def train_ml_model(self, train_file=None, **kwargs):
         """
         Huấn luyện mô hình machine learning
-        
-        Args:
-            train_file (str, optional): Đường dẫn đến file huấn luyện
-            
-        Returns:
-            float: Độ chính xác trên tập huấn luyện
         """
         try:
             accuracy = self.ml_detector.train(train_file, **kwargs)
@@ -122,11 +171,6 @@ class CombinedDetector:
         """
         Đánh giá mô hình machine learning
         
-        Args:
-            test_file (str, optional): Đường dẫn đến file kiểm tra
-            
-        Returns:
-            dict: Kết quả đánh giá
         """
         if not self.ml_available:
             raise ValueError("Mô hình ML không khả dụng để đánh giá")
@@ -140,12 +184,6 @@ class CombinedDetector:
     def get_feature_importance(self, top_n=10):
         """
         Lấy các đặc trưng quan trọng của mô hình ML
-        
-        Args:
-            top_n (int): Số lượng đặc trưng quan trọng nhất
-            
-        Returns:
-            dict: Thông tin về các đặc trưng quan trọng
         """
         if not self.ml_available:
             raise ValueError("Mô hình ML không khả dụng")
@@ -156,58 +194,9 @@ class CombinedDetector:
             self.logger.log_error(f"Lỗi khi lấy feature importance: {e}")
             raise
     
-    def tune_thresholds(self, rule_threshold=None, ml_threshold=None, combined_threshold=None):
-        """
-        Điều chỉnh các ngưỡng phát hiện
-        
-        Args:
-            rule_threshold (float, optional): Ngưỡng phát hiện cho rule-based
-            ml_threshold (float, optional): Ngưỡng phát hiện cho ML
-            combined_threshold (float, optional): Ngưỡng phát hiện kết hợp
-        """
-        if rule_threshold is not None:
-            self.rule_detector.threshold = float(rule_threshold)
-            self.logger.log_info(f"Đã điều chỉnh ngưỡng rule-based: {rule_threshold}")
-            
-        if ml_threshold is not None and hasattr(self.ml_detector, 'threshold'):
-            self.ml_detector.threshold = float(ml_threshold)
-            self.logger.log_info(f"Đã điều chỉnh ngưỡng ML: {ml_threshold}")
-            
-        if combined_threshold is not None:
-            self.combined_threshold = float(combined_threshold)
-            self.logger.log_info(f"Đã điều chỉnh ngưỡng kết hợp: {combined_threshold}")
-    
-    def adjust_weights(self, rule_weight=None, ml_weight=None):
-        """
-        Điều chỉnh trọng số cho rule-based và ML
-        
-        Args:
-            rule_weight (float, optional): Trọng số cho rule-based
-            ml_weight (float, optional): Trọng số cho ML
-        """
-        if rule_weight is not None and ml_weight is not None:
-            # Kiểm tra tổng trọng số bằng 1
-            if abs(rule_weight + ml_weight - 1.0) > 0.001:
-                raise ValueError("Tổng trọng số phải bằng 1.0")
-                
-            self.rule_weight = float(rule_weight)
-            self.ml_weight = float(ml_weight)
-            self.logger.log_info(f"Đã điều chỉnh trọng số: Rule={self.rule_weight}, ML={self.ml_weight}")
-        elif rule_weight is not None:
-            self.rule_weight = float(rule_weight)
-            self.ml_weight = 1.0 - self.rule_weight
-            self.logger.log_info(f"Đã điều chỉnh trọng số: Rule={self.rule_weight}, ML={self.ml_weight}")
-        elif ml_weight is not None:
-            self.ml_weight = float(ml_weight)
-            self.rule_weight = 1.0 - self.ml_weight
-            self.logger.log_info(f"Đã điều chỉnh trọng số: Rule={self.rule_weight}, ML={self.ml_weight}")
-
     def get_config(self):
         """
         Lấy thông tin cấu hình hiện tại của detector
-        
-        Returns:
-            dict: Thông tin cấu hình hiện tại
         """
         return {
             'ml_available': self.ml_available,
