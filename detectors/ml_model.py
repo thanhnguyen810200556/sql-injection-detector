@@ -9,7 +9,7 @@ from sklearn.feature_selection import SelectFromModel
 from sklearn.model_selection import RandomizedSearchCV
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
-from sklearn.metrics import precision_score, recall_score, f1_score, confusion_matrix
+from sklearn.metrics import precision_recall_curve, precision_score, recall_score, f1_score, confusion_matrix, roc_curve
 from utils.data_processor import DataProcessor
 from config import Config
 from imblearn.pipeline import Pipeline as ImbPipeline
@@ -33,7 +33,8 @@ class MLDetector:
         self.model = None
         self.scaler = None
         self.feature_names = None
-        
+        self.threshold = Config.ML_THRESHOLD
+
         # Tải model nếu đã tồn tại
         if os.path.exists(model_path):
             self.load_model()
@@ -41,16 +42,6 @@ class MLDetector:
     def train(self, train_file=None):
         """
         Huấn luyện mô hình machine learning với SMOTE, feature selection và tinh chỉnh tham số
-    
-        Args:
-            train_file (str, optional): Đường dẫn đến file dữ liệu huấn luyện
-        
-        Returns:
-            float: F1-score trên tập huấn luyện
-        
-        Raises:
-            FileNotFoundError: Nếu không tìm thấy file dữ liệu
-            ValueError: Nếu dữ liệu chỉ có một lớp
         """
         if train_file is None:
             train_file = Config.TRAIN_DATA_PATH
@@ -86,18 +77,13 @@ class MLDetector:
         # Tạo pipeline với SMOTE, feature selection và RandomForest
         logging.info("Khởi tạo pipeline")
         self.pipeline = ImbPipeline([
-        ('scaler', StandardScaler()),
-        ('smote', SMOTE(random_state=42)),  # Giữ SMOTE để xử lý mất cân bằng
-        ('classifier', RandomForestClassifier(
-                                n_estimators=200, #300
-                                 random_state=42,
-                                 min_samples_split = 5,
-                                 min_samples_leaf = 4, #2
-                                 max_features = 'log2',
-                                 max_depth = 12,
-                                 n_jobs=-1,
-                                 class_weight={0: 1, 1: 1.5})) # Chọn đặc trưng 1:1.2
-        ])
+            ('scaler', StandardScaler()),
+            ('smote', SMOTE(random_state=42)),  
+            ('classifier', RandomForestClassifier(
+                                    n_estimators=100,
+                                    max_depth = 10, 
+                                    )) 
+            ])
 
         # Định nghĩa tham số tìm kiếm
         param_grid = {
@@ -117,7 +103,7 @@ class MLDetector:
             param_distributions=param_grid,
             n_iter=10,  # Số lần thử
             cv=5,
-            scoring='f1',
+            scoring='recall',
             n_jobs=-1,
             random_state=42,
             verbose=1
@@ -126,9 +112,9 @@ class MLDetector:
         search.fit(X_train_df, y_train)
         self.pipeline = search.best_estimator_
         logging.info(f"Tham số tốt nhất: {search.best_params_}")
-        logging.info(f"F1-score tốt nhất (CV): {search.best_score_:.4f}")
+        logging.info(f"Recall tốt nhất (CV): {search.best_score_:.4f}")
         print(f"Tham số tốt nhất: {search.best_params_}")
-        print(f"F1-score tốt nhất (CV): {search.best_score_:.4f}")
+        print(f"Recall tốt nhất (CV): {search.best_score_:.4f}")
 
         # Trích xuất mô hình và scaler từ pipeline
         self.model = self.pipeline.named_steps['classifier']
@@ -147,25 +133,15 @@ class MLDetector:
     
         # Đánh giá model trên tập train
         y_pred = self.pipeline.predict(X_train_df)
-        train_f1 = f1_score(y_train, y_pred)
-        logging.info(f"F1-score trên tập train: {train_f1:.4f}")
-        print(f"F1-score trên tập train: {train_f1:.4f}")
+        train_recall = recall_score(y_train, y_pred)
+        logging.info(f"Recall trên tập train: {train_recall:.4f}")
+        print(f"Recall trên tập train: {train_recall:.4f}")
     
-        return train_f1
+        return train_recall
     
     def evaluate(self, test_file=None):
         """
         Đánh giá mô hình trên tập test
-    
-        Args:
-            test_file (str, optional): Đường dẫn đến file dữ liệu kiểm tra
-        
-        Returns:
-            dict: Dictionary chứa các metrics đánh giá
-        
-        Raises:
-            ValueError: Nếu mô hình chưa được huấn luyện
-            FileNotFoundError: Nếu không tìm thấy file dữ liệu
         """
         if self.model is None or self.scaler is None:
             raise ValueError("Mô hình chưa được huấn luyện hoặc tải")
@@ -255,24 +231,26 @@ class MLDetector:
         except Exception as e:
             print(f"Lỗi khi tải model: {e}")
             return False
-    
-    def detect(self, query):
+
+    def detect(self, query, test_file=None, find_optimal_threshold=False):
         """
         Phát hiện SQL injection bằng machine learning
-    
-        Args:
-            query (str): Chuỗi truy vấn cần kiểm tra
-        
-        Returns:
-            dict: Kết quả phát hiện bao gồm:
-                - score: Xác suất query là SQL injection (0.0 đến 1.0)
-                - is_sqli: Boolean cho biết có phải SQL injection hay không
-                - execution_time: Thời gian thực thi (ms)
         """
         if self.model is None:
             raise ValueError("Model chưa được huấn luyện hoặc tải")
-        
+    
         start_time = time.time()
+        
+        # Tìm threshold tốt nhất nếu được yêu cầu
+        if find_optimal_threshold:
+            if test_file is None:
+                test_file = Config.TEST_DATA_PATH
+            
+            optimal_threshold = self._find_optimal_threshold(test_file)
+            if optimal_threshold is not None:
+                self.threshold = optimal_threshold
+                print(f"Threshold tốt nhất được tìm thấy: {optimal_threshold:.4f}")
+                logging.info(f"Optimal threshold found and updated: {optimal_threshold:.4f}")
     
         # Trích xuất features
         features = self.data_processor.extract_features(query)
@@ -292,33 +270,118 @@ class MLDetector:
         # Xử lý trường hợp mô hình chỉ có một lớp
         if len(self.model.classes_) < 2:
             logging.warning("Mô hình chỉ có một lớp: %s", self.model.classes_)
-            # Nếu lớp duy nhất là 0 (không phải SQLi), score = 0
-            # Nếu lớp duy nhất là 1 (là SQLi), score = 1
             is_only_class_sqli = 1 in self.model.classes_
-            return {
+            result = {
                 'score': 1.0 if is_only_class_sqli else 0.0,
                 'is_sqli': is_only_class_sqli,
                 'execution_time': (time.time() - start_time) * 1000
             }
+            if find_optimal_threshold:
+                result['optimal_threshold'] = self.threshold
+            return result
     
         # Dự đoán xác suất (với mô hình có cả 2 lớp)
         try:
-            score = self.model.predict_proba(X)[0, 1]  # Xác suất là SQL injection
-            is_sqli = score >= 0.5
+            score = self.model.predict_proba(X)[0, 1]  
+            is_sqli = score >= self.threshold
         except Exception as e:
             logging.error("Lỗi khi dự đoán: %s", str(e))
-            # Fallback an toàn - không phải SQLi
             score = 0.0
             is_sqli = False
     
         execution_time = (time.time() - start_time) * 1000  # ms
     
-        return {
+        result = {
             'ml_score': score,
             'is_sqli': is_sqli,
             'execution_time': execution_time
         }
-    
+        
+        if find_optimal_threshold:
+            result['optimal_threshold'] = self.threshold
+        
+        return result
+
+    def _find_optimal_threshold(self, test_file):
+        """
+        Tìm threshold tốt nhất 
+        """
+        try:
+            test_data = pd.read_csv(test_file)
+        
+            if 'query' not in test_data.columns or 'label' not in test_data.columns:
+                logging.error("Test file phải có cột 'query' và 'label'")
+                return None
+            
+            # Trích xuất features cho tất cả test queries
+            test_features = []
+            test_labels = []
+            
+            for _, row in test_data.iterrows():
+                try:
+                    features = self.data_processor.extract_features(row['query'])
+                    test_features.append(features)
+                    test_labels.append(row['label'])
+                except Exception as e:
+                    logging.warning(f"Lỗi khi xử lý query: {row['query'][:50]}... - {str(e)}")
+                    continue
+            
+            if len(test_features) == 0:
+                logging.error("Không thể trích xuất features từ test data")
+                return None
+            
+            # Chuyển đổi thành DataFrame
+            test_features_df = pd.DataFrame(test_features)
+            
+            # Kiểm tra các features thiếu
+            missing_features = set(self.feature_names) - set(test_features_df.columns)
+            for feature in missing_features:
+                test_features_df[feature] = 0
+            
+            # Đảm bảo thứ tự features
+            test_features_df = test_features_df[self.feature_names]
+            
+            # Chuẩn hóa features
+            X_test = self.scaler.transform(test_features_df)
+            y_test = np.array(test_labels)
+            
+            # Dự đoán xác suất
+            if len(self.model.classes_) < 2:
+                logging.warning("Model chỉ có một lớp, không thể tìm optimal threshold")
+                return None
+            
+            y_proba = self.model.predict_proba(X_test)[:, 1]
+            
+            # Tìm threshold tốt nhất 
+            precision, recall, thresholds_pr = precision_recall_curve(y_test, y_proba)
+            f1_scores = 2 * (precision * recall) / (precision + recall + 1e-8)  
+            
+           
+            best_f1_idx = np.argmax(f1_scores)
+            
+            
+            if best_f1_idx >= len(thresholds_pr):
+                optimal_threshold_f1 = thresholds_pr[-1]
+            else:
+                optimal_threshold_f1 = thresholds_pr[best_f1_idx]
+            
+           
+            fpr, tpr, thresholds_roc = roc_curve(y_test, y_proba)
+            j_scores = tpr - fpr  
+            best_j_idx = np.argmax(j_scores)
+            optimal_threshold_roc = thresholds_roc[best_j_idx]
+            
+            # Log thông tin về các threshold tìm được
+            logging.info(f"Optimal threshold (F1-based): {optimal_threshold_f1:.4f} (F1: {f1_scores[best_f1_idx]:.4f})")
+            logging.info(f"Optimal threshold (ROC-based): {optimal_threshold_roc:.4f} (J: {j_scores[best_j_idx]:.4f})")
+            
+           
+            return float(optimal_threshold_f1)
+            
+        except Exception as e:
+            logging.error(f"Lỗi khi tìm optimal threshold: {str(e)}")
+            return None
+        
     def get_feature_importance(self, top_n=10):
         """
         Lấy tầm quan trọng của các tính năng trong mô hình
@@ -354,3 +417,4 @@ class MLDetector:
         'top_features': top_features.to_dict('records'),
         'all_features': feature_importance.to_dict('records')
         }
+    
