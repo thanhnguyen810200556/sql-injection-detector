@@ -16,7 +16,6 @@ class DataProcessor:
         self.sql_keywords = Config.SQL_KEYWORDS
         self.special_chars = Config.SPECIAL_CHARS
         self.feature_extractors = Config.FEATURE_EXTRACTORS
-        # Khởi tạo bộ nhớ đệm cho các phương thức tính toán tốn kém
         self._feature_cache = {}
     
     @lru_cache(maxsize=1000)
