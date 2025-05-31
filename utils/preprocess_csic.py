@@ -1,38 +1,66 @@
-#Xử lý dữ liệu thô
+# # import pandas as pd
+
+# # # Đọc file
+# # file_path = "data/validation/Validation.csv"
+# # df = pd.read_csv(file_path)
+
+# # # Trước xử lý
+# # total_before = len(df)
+
+# # # Xóa các dòng label không hợp lệ (NaN, không phải 0 hoặc 1)
+# # df_clean = df[df['label'].isin([0, 1])].copy()
+# # df_clean = df_clean.dropna(subset=['label'])
+
+# # # Sau xử lý
+# # total_after = len(df_clean)
+# # removed = total_before - total_after
+
+# # # Tính tỷ lệ 0:1
+# # label_counts = df_clean['label'].value_counts()
+# # label_0 = label_counts.get(0, 0)
+# # label_1 = label_counts.get(1, 0)
+# # ratio = f"{label_0}:{label_1}"
+
+# # # In kết quả
+# # print(f"Đã xoá {removed} dòng không hợp lệ.")
+# # print(f"Còn lại {total_after} dòng.")
+# # print(f"Tỷ lệ nhãn 0:1 là {ratio}")
+
+# # # Lưu lại file sạch
+# # df_clean.to_csv("data/validation/Validation_clean.csv", index=False)
+# import pandas as pd
+# from sklearn.model_selection import train_test_split
+# import os
+
+# # Đảm bảo các thư mục tồn tại
+# os.makedirs("data/train", exist_ok=True)
+# os.makedirs("data/test", exist_ok=True)
+
+# # Đọc dữ liệu
+# df = pd.read_csv("data/clean_sql_dataset.csv")
+
+# # Tách dữ liệu thành train2 và test2 (80% train, 20% test - bạn có thể thay đổi tỉ lệ nếu cần)
+# train2, test2 = train_test_split(df, test_size=0.2, random_state=42)
+
+# # Lưu vào các file CSV
+# train2.to_csv("data/train/train2.csv", index=False)
+# test2.to_csv("data/test/test2.csv", index=False)
+
+# print("Đã tách và lưu train2 và test2 thành công.")
 import pandas as pd
 
-def preprocess_csic_data(input_file, output_file):
-    # Đọc file CSV
-    df = pd.read_csv(input_file)
+# Đọc file CSV
+df = pd.read_csv('data/test/Test_clean.csv')
 
-    # Lọc chỉ giữ các request có classification là 0 (Normal) hoặc 1 (SQLI)
-    df_filtered = df[df['classification'].isin([0, 1])].copy()
-    
-    # Tạo cột "query" - sử dụng URL cho GET request hoặc content cho POST request
-    df_filtered['query'] = df_filtered.apply(
-        lambda row: row['URL'] if row['Method'] == 'GET' else row.get('content', ''), 
-        axis=1
-    )
+# Giả sử cột nhãn tên là 'label'. Nếu khác, sửa lại tên cột cho đúng
+label_counts = df['label'].value_counts()
 
-    # Đổi tên cột classification thành label (0=Normal, 1=SQLI)
-    df_filtered['label'] = df_filtered['classification']
+# In ra số lượng mỗi nhãn
+print("Số lượng nhãn:")
+print(label_counts)
 
-    # Loại bỏ các hàng có query rỗng hoặc None
-    df_filtered = df_filtered[df_filtered['query'].notna() & (df_filtered['query'] != '')]
+# Tính tỷ lệ phần trăm
+label_percentages = df['label'].value_counts(normalize=True) * 100
 
-    # Chỉ giữ 2 cột cần thiết
-    df_final = df_filtered[['query', 'label']]
-
-    # Lưu file CSV
-    df_final.to_csv(output_file, index=False)
-    
-    # Thống kê
-    print(f"Dữ liệu đã được tiền xử lý và lưu tại: {output_file}")
-    print(f"Số lượng truy vấn Normal (0): {len(df_final[df_final['label'] == 0])}")
-    print(f"Số lượng truy vấn SQLI (1): {len(df_final[df_final['label'] == 1])}")
-    print(f"Tổng số mẫu: {len(df_final)}")
-
-if __name__ == "__main__":
-    input_file = "D:/University Courses/HK4/HDH-IT007/Đồ án cuối kì/sql-injection-detector/data/csic_database.csv"
-    output_file = "D:/University Courses/HK4/HDH-IT007/Đồ án cuối kì/sql-injection-detector/data/preprocessed_csic.csv"
-    preprocess_csic_data(input_file, output_file)
+print("\nTỷ lệ phần trăm:")
+print(label_percentages.round(2))  # Làm tròn 2 chữ số
