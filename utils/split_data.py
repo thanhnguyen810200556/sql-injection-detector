@@ -3,7 +3,6 @@ from sklearn.model_selection import train_test_split
 import os
 
 def split_dataset(input_file, train_file, test_file, test_size=0.2):
-    """Chia dữ liệu thành tập train/test và lưu vào file CSV."""
     # Kiểm tra file tồn tại
     if not os.path.exists(input_file):
         raise FileNotFoundError(f"File đầu vào {input_file} không tồn tại!")
@@ -42,7 +41,6 @@ if __name__ == "__main__":
     # Đường dẫn tương đối an toàn
     base_dir = os.path.dirname(os.path.dirname(__file__))
     data_dir = os.path.join(base_dir, "data")    
-    input_file = os.path.join(data_dir, "preprocessed_csic.csv")
     train_file = os.path.join(data_dir, "training", "train.csv")
     test_file = os.path.join(data_dir, "test", "test.csv")
     
