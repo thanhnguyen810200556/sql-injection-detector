@@ -49,18 +49,20 @@ venv\Scripts\activate     # Windows
 
 # Install dependencies
 pip install -r requirements.txt
-```
-By default, the server will run on **http://127.0.0.1:5000/**  
 
-You can access the web interface to test queries or call the REST API directly.  
+# Run the Flask app
+python app.py
+```
+
+---
 
 ## 🎥 Demo Video  
 👉 [Watch here](https://drive.google.com/file/d/1J9QmimoD3FSK7v0PveiiO9ZBOeVksrwi/view?usp=sharing)
 
+---
+
 ## 👨‍💻 Development Team  
-- **Nguyen Thanh N.** – Machine Learning pipeline, API integration, model evaluation, documentation.  
-- **[Teammate’s Name]** – Web interface, preprocessing, rule-based detection, testing.  
+- **Nguyễn Xuân Thanh** – Machine Learning, hybrid model, evaluation & results visualization, documentation.  
+- **Nguyễn Trần Khánh Vân** – Web interface, preprocessing, rule-based detection, testing, demo video recording.
 
 
-# Run the Flask app
-python app.py
