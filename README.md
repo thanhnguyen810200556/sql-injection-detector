@@ -1,33 +1,66 @@
-# sql-injection-detector
 # 🔍 Web Attack Detection System
 
-Ứng dụng web triển khai mô hình phân tích truy vấn HTTP để phát hiện các tấn công web, đặc biệt là tấn công **SQL Injection**. Hệ thống kết hợp giữa phương pháp **Rule-based (regex)** và **Machine Learning** để đưa ra dự đoán chính xác.
-
-## 🚀 Tính năng chính
-
-- Tiền xử lý và trích xuất đặc trưng từ truy vấn web (query string).
-- Phát hiện truy vấn tấn công dựa trên:
-  - Mô hình Rule-based (Regex)
-  - Mô hình học máy ( Random Forest )
-  - Mô hình kết hợp Rule-based và Machine Learning
-- API RESTful sử dụng Flask.
-- Giao diện web đơn giản để kiểm tra trực tiếp.
+A web application that analyzes HTTP queries to detect **web attacks**, with a primary focus on **SQL Injection**.  
+The system combines both **Rule-based (regex)** and **Machine Learning (Random Forest)** approaches to achieve accurate predictions.  
 
 ---
 
-## 🧠 Mô hình sử dụng
-
-- **Rule-based**: Dựa vào tập hợp các mẫu regex để phát hiện từ khóa tấn công.
-- **ML-based**: Huấn luyện trên đặc trưng như độ dài truy vấn, số ký tự đặc biệt, số từ khóa SQL, entropy, v.v.
-- **Combined**: Kết hợp hai mô hình trên bằng voting hoặc điều kiện bổ sung.
+## 🚀 Key Features
+- Preprocessing and feature extraction from HTTP query strings.  
+- Detection based on three models:  
+  - **Rule-based model (Regex)**  
+  - **Machine Learning model (Random Forest)**  
+  - **Hybrid model combining Rule-based + ML**  
+- RESTful API built with **Flask**.  
+- Simple **web interface** for real-time testing.  
 
 ---
-## 📊 Kết quả mô hình
-| Metric    | Rule-based | ML-based | Combined |
-| --------- | ---------- | -------- | -------- |
-| Accuracy  | 0.8320     | 0.9727   | 0.9170   |
-| Precision | 0.8099     | 0.9627   | 0.9344   |
-| Recall    | 0.8738     | 0.9861   | 0.8994   |
-| F1-score  | 0.8406     | 0.9742   | 0.9166   |
-| ROC-AUC   | 0.9258     | 0.8961   | 0.9579   |
 
+## 🧠 Detection Models
+- **Rule-based**: Uses a set of regex patterns to identify suspicious SQL keywords and payloads.  
+- **ML-based**: Trained on features such as query length, number of special characters, SQL keyword count, entropy, and n-gram patterns.  
+- **Combined**: Hybrid detection strategy leveraging both rule-based and ML outputs via voting or complementary conditions.  
+
+---
+
+## 📊 Model Performance
+
+| Metric      | Rule-based | ML-based | Combined |
+|-------------|-----------:|---------:|---------:|
+| Accuracy    | 0.8320     | 0.9727   | 0.9170   |
+| Precision   | 0.8099     | 0.9627   | 0.9344   |
+| Recall      | 0.8738     | 0.9861   | 0.8994   |
+| F1-score    | 0.8406     | 0.9742   | 0.9166   |
+| ROC-AUC     | 0.9258     | 0.8961   | 0.9579   |
+
+---
+
+## ⚙️ Installation & Setup
+
+```bash
+# Clone repository
+git clone https://github.com/thanhnguyen810200556/sql-injection-detector.git
+cd sql-injection-detector
+
+# (Optional) Create virtual environment
+python -m venv venv
+source venv/bin/activate  # Linux/Mac
+venv\Scripts\activate     # Windows
+
+# Install dependencies
+pip install -r requirements.txt
+```
+By default, the server will run on **http://127.0.0.1:5000/**  
+
+You can access the web interface to test queries or call the REST API directly.  
+
+## 🎥 Demo Video  
+👉 [Watch here](https://drive.google.com/file/d/1J9QmimoD3FSK7v0PveiiO9ZBOeVksrwi/view?usp=sharing)
+
+## 👨‍💻 Development Team  
+- **Nguyen Thanh N.** – Machine Learning pipeline, API integration, model evaluation, documentation.  
+- **[Teammate’s Name]** – Web interface, preprocessing, rule-based detection, testing.  
+
+
+# Run the Flask app
+python app.py
