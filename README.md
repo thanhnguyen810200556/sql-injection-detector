@@ -34,6 +34,7 @@ The system combines both **Rule-based (regex)** and **Machine Learning (Random F
 | ROC-AUC     | 0.9258     | 0.8961   | 0.9579   |
 
 Confusion Matrix:
+
 <img width="800" height="600" alt="image" src="https://github.com/user-attachments/assets/09e76941-5782-4761-8b74-39ec5b53187b" />
 
 ---
