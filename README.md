@@ -33,6 +33,9 @@ The system combines both **Rule-based (regex)** and **Machine Learning (Random F
 | F1-score    | 0.8406     | 0.9742   | 0.9166   |
 | ROC-AUC     | 0.9258     | 0.8961   | 0.9579   |
 
+Confusion Matrix:
+<img width="800" height="600" alt="image" src="https://github.com/user-attachments/assets/09e76941-5782-4761-8b74-39ec5b53187b" />
+
 ---
 
 ## ⚙️ Installation & Setup
@@ -62,7 +65,7 @@ python app.py
 ---
 
 ## 👨‍💻 Development Team  
-- **Nguyễn Xuân Thanh** – Machine Learning, hybrid model, evaluation & results visualization, documentation.  
-- **Nguyễn Trần Khánh Vân** – Web interface, preprocessing, rule-based detection, testing, demo video recording.
+- **Nguyễn Xuân Thanh** –  Design & implementation of machine learning models, evaluation & visualization, feature engineering
+- **Nguyễn Trần Khánh Vân** – Preprocessing, rule-based system design, web implementation, testing, demo video recording.
 
 
